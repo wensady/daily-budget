@@ -1,0 +1,573 @@
+
+</head>
+
+<body>
+  <!-- 全页壁纸层 -->
+  <div id="bg-layer"></div>
+
+  <!-- 裁剪弹窗 -->
+  <div class="crop-modal" id="crop-modal">
+    <div class="crop-title">调整壁纸显示区域</div>
+    <div class="crop-hint">上下拖动选择展示的部分</div>
+    <div class="crop-mode-row">
+      <button class="crop-mode-btn active" id="crop-mode-full" onclick="cropSetMode('full')">全页预览</button>
+      <button class="crop-mode-btn" id="crop-mode-header" onclick="cropSetMode('header')">头图预览</button>
+    </div>
+    <div class="crop-vp" id="crop-vp">
+      <img id="crop-img" draggable="false" alt="">
+    </div>
+    <div class="crop-actions">
+      <button class="crop-cancel" onclick="cropClose()">取消</button>
+      <button class="crop-confirm" onclick="cropConfirm()">确定使用</button>
+    </div>
+  </div>
+
+  <!-- 图片文件输入（全局） -->
+  <input type="file" id="wallpaper-upload" accept="image/*" style="display:none" onchange="wallpaperPick(this)">
+
+  <!-- 复制备份弹窗 -->
+  <div class="copy-modal" id="copy-modal" onclick="if(event.target===this)closeCopyModal()">
+    <div class="copy-modal-box">
+      <div class="copy-modal-title" id="copy-modal-title">📋 复制备份数据</div>
+      <div class="copy-modal-hint">点击下方按钮，数据将复制到剪贴板<br>然后打开备忘录或微信文件传输助手，粘贴保存</div>
+      <textarea class="copy-modal-text" id="copy-modal-text" readonly></textarea>
+      <div class="copy-modal-btns">
+        <button class="copy-modal-btn pri" onclick="doCopyModal()">复制全部</button>
+        <button class="copy-modal-btn sec" onclick="closeCopyModal()">关闭</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 粘贴恢复弹窗 -->
+  <div class="paste-modal" id="paste-modal" onclick="if(event.target===this)closePasteModal()">
+    <div class="paste-modal-box">
+      <div class="paste-modal-title">📋 粘贴备份数据</div>
+      <div class="paste-modal-hint">长按下方文本框，选「粘贴」把备份内容粘进来</div>
+      <textarea class="paste-modal-ta" id="paste-modal-ta" placeholder="长按此处粘贴备份内容…"></textarea>
+      <div class="paste-modal-btns">
+        <button class="paste-modal-btn pri" onclick="doPasteImport()">确认导入</button>
+        <button class="paste-modal-btn sec" onclick="closePasteModal()">关闭</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 明细弹窗 -->
+  <div class="detail-modal" id="detail-modal" onclick="if(event.target===this)closeDetailModal()">
+    <div class="detail-modal-box">
+      <div class="detail-modal-hdr">
+        <div class="detail-modal-title" id="detail-modal-title"></div>
+        <div class="detail-modal-ttl" id="detail-modal-ttl"></div>
+      </div>
+      <div class="detail-modal-body" id="detail-modal-body"></div>
+      <button class="detail-modal-close" onclick="closeDetailModal()">关闭</button>
+    </div>
+  </div>
+
+  <!-- 代付标记弹窗（点某条账后弹出）-->
+  <div class="aa-sheet-mask" id="aa-sheet-mask" onclick="if(event.target===this)closeAaSheet()">
+    <div class="aa-sheet">
+      <div class="aa-sheet-hdr">
+        <div>
+          <div class="aa-sheet-title">🧮 这笔有别人欠我的</div>
+          <div class="aa-sheet-sub" id="aa-sheet-sub">这笔 ¥0</div>
+        </div>
+        <button class="aa-sheet-x" onclick="closeAaSheet()">×</button>
+      </div>
+      <div class="aa-tip">这笔你付了 <b id="aa-total-hint">¥0.00</b>，其中有多少是别人欠你、之后要还的？收回时会自动记成一笔收入。</div>
+      <div class="aa-field">
+        <label>别人一共欠我</label>
+        <div class="aa-input-row"><span>¥</span><input type="number" inputmode="decimal" id="aa-owed-input" placeholder="0" step="0.01" min="0"></div>
+      </div>
+      <div class="aa-field">
+        <label>备注（谁欠的，可不填）</label>
+        <input type="text" id="aa-note" placeholder="例：老王 / 同事聚餐…">
+      </div>
+      <div class="aa-sheet-btns">
+        <button class="aa-sheet-del" id="aa-sheet-del" onclick="clearAaSplit()" style="display:none">取消代付</button>
+        <button class="aa-sheet-save" onclick="saveAaSheet()">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 点一条账后的操作菜单 -->
+  <div class="aa-sheet-mask" id="entry-menu-mask" onclick="if(event.target===this)closeEntryMenu()">
+    <div class="aa-sheet">
+      <div class="aa-sheet-hdr">
+        <div>
+          <div class="aa-sheet-title">这笔怎么处理？</div>
+          <div class="aa-sheet-sub" id="entry-menu-sub"></div>
+        </div>
+        <button class="aa-sheet-x" onclick="closeEntryMenu()">×</button>
+      </div>
+      <button class="menu-act" onclick="menuEdit()">✏️ 编辑这笔</button>
+      <button class="menu-act" id="menu-aa-btn" onclick="menuAa()">🧮 代付分摊（帮别人垫付）</button>
+      <button class="menu-act danger" onclick="menuDel()">🗑️ 删除</button>
+    </div>
+  </div>
+
+
+  <div class="wrap">
+
+    <div class="nav">
+      <button class="nb active" onclick="switchPage('record')">记账</button>
+      <button class="nb" onclick="switchPage('stats')">统计</button>
+    </div>
+
+    <!-- ══ 记账页 ══ -->
+    <div class="page active" id="page-record">
+      <div class="date-row">
+        <span class="dlbl">日期</span>
+        <input type="date" class="dpick" id="record-date">
+        <button class="dtoday" onclick="setToday()">回今天</button>
+      </div>
+
+      <!-- 别人欠我：有未收回的垫付才出现，点击跳到统计页清单 -->
+      <div class="owe-banner" id="home-owe-banner" style="display:none" onclick="gotoOwed()">
+        <span class="ic">💰</span>
+        <span class="t">别人还欠你 <b id="home-owe-sum">¥0</b></span>
+        <span class="arr">›</span>
+      </div>
+
+      <!-- 金额 -->
+      <div class="card">
+        <div class="slabel" style="display:flex;justify-content:space-between;align-items:center">
+          <span>花了多少</span>
+          <button class="dtoday" style="font-size:11px;margin:0;padding:4px 8px;background:var(--purple);color:#fff;border:none" onclick="triggerScreenshotUpload(event)">📷 截图识别</button>
+        </div>
+        <input type="file" id="screenshot-upload" accept="image/*" style="display:none" onchange="handleScreenshotUpload(this)">
+        <div class="amt-row">
+          <span class="amt-pre">¥</span>
+          <input class="amt-in" type="number" inputmode="decimal" id="amount-input" placeholder="0" step="0.01" min="0">
+        </div>
+        <!-- smart-amt-box 会在选类别后从下面的卡动态注入到这里，保持金额卡聚焦 -->
+        <div class="smart-amt-box" id="smart-amt-box" style="display:none">
+          <div class="smart-amt-label">💡 <span id="smart-amt-label-text">常用金额</span></div>
+          <div class="smart-amt-chips" id="smart-amt-chips"></div>
+        </div>
+      </div>
+
+      <!-- 花了什么 -->
+      <div class="card">
+        <div class="slabel">花了什么</div>
+        <div class="crow" style="margin-bottom:8px">
+          <button class="chip" data-group="spend" data-key="breakfast">🌅 早饭</button>
+          <button class="chip" data-group="spend" data-key="lunch">☀️ 午饭</button>
+          <button class="chip" data-group="spend" data-key="dinner">🌙 晚饭</button>
+          <button class="chip" data-group="spend" data-key="snack">🥡 零食/饮品</button>
+          <button class="chip" data-group="spend" data-key="grocery">🛒 买菜</button>
+          <button class="chip" data-group="spend" data-key="transport">🚇 交通出行</button>
+          <button class="chip" data-group="spend" data-key="household">🧴 日用品</button>
+          <button class="chip" data-group="spend" data-key="medical">💊 健康/医疗</button>
+          <button class="chip" data-group="spend" data-key="education">📚 学习/订阅</button>
+          <button class="chip" data-group="spend" data-key="entertainment">🎬 娱乐休闲</button>
+          <button class="chip more" onclick="toggleMore(this,'spend-more')">更多 ▾</button>
+        </div>
+        <div class="mrow" id="spend-more">
+          <button class="chip" data-group="spend" data-key="meal">🍜 外卖/聚餐</button>
+          <button class="chip" data-group="spend" data-key="beauty">🪥 个人护理</button>
+          <button class="chip" data-group="spend" data-key="gift">🎁 礼物/人情</button>
+          <button class="chip" data-group="spend" data-key="clothes">👕 衣物鞋包</button>
+          <button class="chip" data-group="spend" data-key="pet">🐾 宠物</button>
+          <button class="chip" data-group="spend" data-key="repair">🔧 维修/服务</button>
+          <button class="chip" data-group="spend" data-key="travel">✈️ 出行旅游</button>
+          <button class="chip" data-group="spend" data-key="other">📦 其他</button>
+        </div>
+        <!-- 历史推荐：选类别后出现，在输入框上方，方便一键填入 -->
+        <div class="cat-hist-box" id="cat-hist-box" style="display:none;margin-top:10px">
+          <div class="cat-hist-label">🕐 <span id="cat-hist-label-text">最近记过</span></div>
+          <div class="cat-hist-chips" id="cat-hist-chips"></div>
+        </div>
+        <div style="margin-top:8px">
+          <input class="ti" type="text" id="desc-input" placeholder="或手动输入具体内容（选填）">
+        </div>
+      </div>
+
+      <!-- 地点 / 原因：默认折叠，点开才出现（选填，加快日常快记）-->
+      <button class="extra-toggle" id="extra-toggle" onclick="toggleExtra()">＋ 地点 · 原因（选填）</button>
+      <div id="extra-fields" style="display:none">
+      <!-- 地点 -->
+      <div class="card">
+        <div class="slabel">在哪里</div>
+
+        <!-- 智能地点推荐（按分类联动） -->
+        <div class="smart-place-box" id="smart-place-box" style="display:none">
+          <div class="smart-place-label">✨ <span id="smart-place-label-text">常去地点</span></div>
+          <div class="smart-place-chips" id="smart-place-chips"></div>
+        </div>
+
+        <!-- 固定地点（用户手动钉）-->
+        <div id="pinned-wrap" style="display:none;margin-bottom:4px">
+          <div style="font-size:11px;color:var(--orange);margin-bottom:6px;letter-spacing:.04em">📌 固定地点</div>
+          <div class="pinned-row" id="pinned-chips"></div>
+        </div>
+
+        <!-- 最近常用（动态，出现1次即显示）-->
+        <div id="freq-wrap" style="display:none;margin-bottom:12px">
+          <div style="font-size:11px;color:var(--ink3);margin-bottom:6px;letter-spacing:.04em">🕐 最近去过</div>
+          <div class="freq-row" id="freq-chips"></div>
+        </div>
+
+        <!-- 实体地点 -->
+        <div style="font-size:11px;color:var(--ink3);margin-bottom:7px;letter-spacing:.04em">实体场所</div>
+        <div class="crow" style="margin-bottom:8px">
+          <button class="chip" data-group="place" data-key="home_market">🏘️ 家附近市场</button>
+          <button class="chip" data-group="place" data-key="supermarket">🏪 超市</button>
+          <button class="chip" data-group="place" data-key="wet_market">🥬 菜市场</button>
+          <button class="chip" data-group="place" data-key="convenience">🏃 便利店</button>
+          <button class="chip" data-group="place" data-key="canteen">🍱 食堂</button>
+          <button class="chip" data-group="place" data-key="restaurant">🍽️ 餐厅</button>
+          <button class="chip" data-group="place" data-key="hospital">🏥 医院/药店</button>
+          <button class="chip" data-group="place" data-key="clinic">🩺 诊所/体检</button>
+          <button class="chip" data-group="place" data-key="transit">🚉 地铁/公交站</button>
+          <button class="chip more" onclick="toggleMore(this,'place-more')">更多 ▾</button>
+        </div>
+        <div class="mrow" id="place-more">
+          <button class="chip" data-group="place" data-key="mall">🛍️ 商场</button>
+          <button class="chip" data-group="place" data-key="pharmacy">💉 药店</button>
+          <button class="chip" data-group="place" data-key="school">🏫 学校/培训</button>
+          <button class="chip" data-group="place" data-key="bank">🏦 银行/ATM</button>
+          <button class="chip" data-group="place" data-key="salon">💇 美发/美容</button>
+          <button class="chip" data-group="place" data-key="gym">🏋️ 健身房</button>
+        </div>
+
+        <!-- 渠道（线上） -->
+        <div style="font-size:11px;color:var(--ink3);margin:10px 0 7px;letter-spacing:.04em">线上渠道</div>
+        <div class="crow">
+          <button class="chip" data-group="place" data-key="taobao">🛒 淘宝/天猫</button>
+          <button class="chip" data-group="place" data-key="jd">📦 京东</button>
+          <button class="chip" data-group="place" data-key="pdd">💰 拼多多</button>
+          <button class="chip" data-group="place" data-key="meituan">🛵 美团外卖</button>
+          <button class="chip" data-group="place" data-key="eleme">🍜 饿了么</button>
+          <button class="chip" data-group="place" data-key="online_other">🌐 其他网购</button>
+        </div>
+
+        <!-- 店名补充（网购时显示） -->
+        <div class="channel-box" id="shop-box">
+          <div class="slabel" style="margin:10px 0 5px">具体店家</div>
+          <input class="ti" type="text" id="shop-input" placeholder="例如：某旗舰店、家门口那家">
+        </div>
+
+        <!-- 手动输入 + 固定按钮 -->
+        <div class="place-row">
+          <input class="ti" type="text" id="place-input" placeholder="或直接输入地点名称">
+          <button class="pin-btn" id="pin-btn" title="固定这个地点" onclick="togglePinCurrent()">📌</button>
+        </div>
+        <div id="pin-hint" style="font-size:11px;color:var(--ink3);margin-top:5px;display:none">
+          已固定，下次直接点选
+        </div>
+      </div>
+
+      <!-- 为什么花 -->
+      <div class="card">
+        <div class="slabel">为什么花</div>
+        <div class="crow reason-chips" style="margin-bottom:10px">
+          <button class="chip" data-group="reason" data-key="daily">🏠 日常生活</button>
+          <button class="chip" data-group="reason" data-key="family">👨‍👩‍👧 家人/孩子</button>
+          <button class="chip" data-group="reason" data-key="health">🩺 健康就医</button>
+          <button class="chip" data-group="reason" data-key="outing">🚶 出门在外</button>
+          <button class="chip" data-group="reason" data-key="social">🎊 礼尚往来</button>
+          <button class="chip" data-group="reason" data-key="invest">🌱 投资自己</button>
+          <button class="chip" data-group="reason" data-key="want">✨ 想要/喜欢</button>
+        </div>
+        <input class="ti" type="text" id="reason-input" placeholder="或者用自己的话写一句…">
+      </div>
+      </div><!-- /extra-fields -->
+
+      <!-- 已记条目 -->
+      <div class="card" id="entry-card" style="display:none">
+        <div class="slabel" style="display:flex;justify-content:space-between;align-items:center">
+          <span>已记 <span id="entry-date-lbl"></span></span>
+          <span id="unsaved-hint" style="font-size:10px;color:var(--orange);display:none">⚠️ 有条目未保存</span>
+        </div>
+        <div class="elist" id="entry-list"></div>
+        <div class="etotal" id="entry-total"></div>
+      </div>
+
+      <!-- 编辑提示条（编辑时显示） -->
+      <div class="edit-hint-bar" id="edit-hint-bar">
+        <span>✏️ 正在编辑这笔记录</span>
+        <button class="edit-cancel-btn" onclick="cancelEdit()">取消编辑</button>
+      </div>
+
+      <!-- 按钮区 -->
+      <button class="add-btn" id="add-btn">＋ 添加这笔</button>
+
+      <!-- 保存后的操作 -->
+      <div class="done-bar" id="done-bar" style="display:none">
+        <button class="done-btn g" onclick="switchPage('stats')">看统计</button>
+        <button class="done-btn p" onclick="const b=document.getElementById('add-btn');if(b._cancelJump)b._cancelJump();document.getElementById('amount-input').focus();document.getElementById('amount-input').scrollIntoView({behavior:'smooth',block:'center'})">继续记</button>
+      </div>
+
+      <!-- 收入快记 -->
+      <button class="income-toggle-btn" onclick="toggleIncomeForm()">＋ 记一笔收入</button>
+      <div class="card" id="income-form-card" style="display:none;border:1.5px solid #a8d5b5;background:rgba(240,255,244,0.92)">
+        <div class="slabel">收了多少</div>
+        <div class="amt-row">
+          <span class="amt-pre" style="color:#27ae60">¥</span>
+          <input class="amt-in" type="number" inputmode="decimal" id="income-amt" placeholder="0" style="color:#1e8449">
+        </div>
+        <div style="margin-top:1rem">
+          <div class="slabel">收入来源</div>
+          <div class="crow">
+            <button class="chip" data-group="income" data-key="salary">💰 工资</button>
+            <button class="chip" data-group="income" data-key="part">🛠️ 兼职</button>
+            <button class="chip" data-group="income" data-key="bonus">🎁 奖金</button>
+            <button class="chip" data-group="income" data-key="red">🧧 红包</button>
+            <button class="chip" data-group="income" data-key="transfer">↩️ 转账</button>
+            <button class="chip" data-group="income" data-key="other">📦 其他</button>
+          </div>
+        </div>
+        <div style="margin-top:.75rem">
+          <input class="ti" id="income-desc" placeholder="备注（选填）">
+        </div>
+        <button class="income-add-btn" id="income-add-btn" onclick="addIncome()">✓ 确认收入</button>
+      </div>
+
+      <!-- 今日收入列表（有收入才显示，点开可改/删）-->
+      <div class="card" id="income-list-card" style="display:none">
+        <div class="slabel">今日收入</div>
+        <div class="elist" id="income-list"></div>
+        <div class="etotal" id="income-total"></div>
+      </div>
+    </div>
+
+
+    <!-- ══ 统计页（含明细）══ -->
+    <div class="page" id="page-stats">
+
+      <!-- 封面头图 -->
+      <div class="cover-header" id="cover-header">
+        <div class="cover-content">
+          <div class="cover-title" id="cover-title">我的账本</div>
+          <div class="cover-sub" id="cover-sub"></div>
+        </div>
+        <div class="cover-stat" style="display:flex;justify-content:space-between;align-items:flex-end">
+          <div>
+            <div class="cover-stat-num" id="q-month">¥0</div>
+            <div class="cover-stat-lbl" id="q-month-lbl">本月支出</div>
+          </div>
+          <div class="cover-income" id="cover-income" style="display:none">
+            <div class="cover-stat-num" style="font-size:20px" id="q-income">¥0</div>
+            <div class="cover-stat-lbl">本月收入</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 快速概览小条 -->
+      <div style="display:flex;gap:8px;margin:0 0 .625rem">
+        <div class="qbox">
+          <div class="qbox-lbl">今日</div>
+          <div class="qbox-val" id="q-today">¥0</div>
+        </div>
+        <div class="qbox">
+          <div class="qbox-lbl">日均</div>
+          <div class="qbox-val" id="q-avg">¥0</div>
+        </div>
+        <div class="qbox">
+          <div class="qbox-lbl">已记天数</div>
+          <div class="qbox-val" id="q-days">0天</div>
+        </div>
+      </div>
+
+      <!-- 月份切换标签 -->
+      <div id="month-tabs-wrap" class="mtabs"></div>
+
+      <!-- 别人欠我（有未收回的垫付才显示）-->
+      <div class="card owed-card" id="owed-card" style="display:none">
+        <div class="owed-title">💰 别人欠我 <span id="owed-sum"></span></div>
+        <div id="owed-list"></div>
+      </div>
+
+      <!-- 锚点快跳栏 -->
+      <div class="stats-anav">
+        <button class="stats-anav-pill" id="search-pill" onclick="toggleSearch()">🔍 搜索</button>
+        <button class="stats-anav-pill" onclick="statsScrollTo('stats-calendar')">📅 日历</button>
+        <button class="stats-anav-pill" onclick="statsScrollTo('stats-cat')">🍩 构成</button>
+        <button class="stats-anav-pill" onclick="statsScrollTo('trend-card')">📈 趋势</button>
+        <button class="stats-anav-pill" onclick="statsScrollTo('insight-card')">💡 洞察</button>
+        <button class="stats-anav-pill" onclick="statsScrollTo('stats-month-cmp')">📊 月对比</button>
+        <button class="stats-anav-pill" onclick="statsScrollTo('stats-year-overview')">📆 年度</button>
+        <button class="stats-anav-pill" onclick="statsScrollTo('stats-backup')">🔒 备份</button>
+      </div>
+
+      <!-- 搜索展开区 -->
+      <div id="search-section" class="search-section">
+        <div class="search-box-wrap">
+          <div class="search-input-row">
+            <span style="font-size:14px;color:var(--ink3)">🔍</span>
+            <input type="text" id="search-input" placeholder="搜索描述、地点、店名…" oninput="doSearch()" autocomplete="off">
+            <button onclick="clearSearchInput()" style="background:none;border:none;font-size:15px;color:var(--ink3);cursor:pointer;padding:0;line-height:1;flex-shrink:0">✕</button>
+          </div>
+          <div class="search-filter-row" id="search-filter-row"></div>
+          <div class="search-hint" id="search-hint">输入关键词或选择分类来搜索记录</div>
+          <div class="search-summary-bar" id="search-summary">
+            <span>已选择 <strong id="search-sel-count">0</strong> 条记录</span>
+            <span>合计：<strong style="font-size: 14px" id="search-sel-total">¥0.00</strong></span>
+          </div>
+          <div class="search-results" id="search-results"></div>
+        </div>
+      </div>
+
+      <!-- 日历总览 -->
+      <div class="sc" id="stats-calendar" style="padding:1rem 1rem .75rem">
+        <div class="cal-nav">
+          <button class="cal-nav-btn" onclick="calPrev()">‹</button>
+          <div style="text-align:center">
+            <div class="cal-month-lbl" id="cal-month-lbl"></div>
+            <div class="cal-month-total" id="cal-month-total"></div>
+          </div>
+          <button class="cal-nav-btn" onclick="calNext()">›</button>
+        </div>
+        <div class="cal-weekdays">
+          <div class="cal-wd">一</div><div class="cal-wd">二</div><div class="cal-wd">三</div>
+          <div class="cal-wd">四</div><div class="cal-wd">五</div>
+          <div class="cal-wd" style="color:#e74c3c">六</div>
+          <div class="cal-wd" style="color:#e74c3c">日</div>
+        </div>
+        <div class="cal-grid" id="cal-grid"></div>
+
+        <!-- 点击日期后显示的快速详情（始终留在统计页） -->
+        <div id="cal-detail" style="display:none;margin-top:.75rem;border-radius:12px;overflow:hidden;border:1.5px solid #ece8e2;background:rgba(255,255,255,0.92)">
+          <div class="cal-detail-hdr">
+            <span class="cal-detail-date" id="cal-detail-date"></span>
+            <span class="cal-detail-total" id="cal-detail-total"></span>
+          </div>
+          <div id="cal-detail-body"></div>
+          <button class="cal-add-btn" id="cal-add-btn" onclick="">＋ 补记一笔</button>
+        </div>
+      </div>
+
+      <!-- 按日期分组的流水明细 -->
+      <div id="month-list-wrap"></div>
+
+      <!-- 支出构成（圆环图） -->
+      <div class="sc" id="stats-cat">
+        <div class="st">支出构成</div>
+        <div id="cat-wrap"><div class="sempty">暂无数据</div></div>
+      </div>
+
+      <!-- 每日趋势（≥2天才显示） -->
+      <div class="sc" id="trend-card" style="display:none">
+        <div class="st" id="trend-title">每日支出趋势</div>
+        <div id="trend-area"></div>
+        <div class="ctip" id="ctip"></div>
+      </div>
+
+      <!-- 消费洞察 -->
+      <div class="sc" id="insight-card" style="display:none">
+        <div class="st">消费洞察</div>
+        <div class="insight-grid" id="insight-grid"></div>
+      </div>
+
+      <!-- 月度对比 -->
+      <div class="sc" id="stats-month-cmp">
+        <div class="st">月度对比</div>
+        <div id="month-cmp"></div>
+      </div>
+
+      <!-- 年度概览 -->
+      <div class="sc" id="stats-year-overview" style="display:none">
+        <div class="st">年度概览 <span id="year-overview-lbl" style="font-size:11px;font-weight:400;color:var(--ink3)"></span></div>
+        <div id="year-overview-bars"></div>
+        <div id="year-overview-footer" class="year-footer"></div>
+      </div>
+
+      <div class="sc" id="stats-backup" style="background:#faf9f7;border:1.5px dashed #e8e4de">
+        <div style="font-size:13px;font-weight:600;color:var(--ink2);margin-bottom:12px">📲 数据备份与恢复</div>
+
+        <!-- ══ 手机端备份 UI ══ -->
+        <div id="backup-mobile" style="display:none">
+          <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px">
+            <div style="display:flex;gap:10px;align-items:flex-start">
+              <div style="width:22px;height:22px;border-radius:50%;background:var(--purple);color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">1</div>
+              <div style="font-size:12px;color:var(--ink2);line-height:1.6">点「<b>分享/导出备份</b>」→ 弹出系统分享菜单 → 可选存到「文件」、发给任意 App<br><span style="color:var(--ink3)">存到「文件」后用数据线连电脑，或直接发给自己</span></div>
+            </div>
+            <div style="display:flex;gap:10px;align-items:flex-start">
+              <div style="width:22px;height:22px;border-radius:50%;background:var(--purple);color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">2</div>
+              <div style="font-size:12px;color:var(--ink2);line-height:1.6">恢复时：用「文件导入」选备份文件，或点「<b>粘贴恢复</b>」手动粘贴 JSON 内容</div>
+            </div>
+          </div>
+          <div style="background:#eeeaf8;border-radius:10px;padding:10px 12px;margin-bottom:14px;font-size:12px;color:var(--pd);line-height:1.6">
+            ⚠️ <b>不要清除浏览器数据</b>，建议每周备份一次
+          </div>
+          <div style="display:flex;flex-direction:column;gap:10px">
+            <button class="sync-btn pri" style="padding:15px;font-size:15px;font-weight:700;border-radius:14px" onclick="exportJSON()">📤 分享/导出备份 (.json)</button>
+            <button class="sync-btn pri" style="padding:15px;font-size:14px;font-weight:600;border-radius:14px;background:linear-gradient(135deg,#27ae60,#2ecc71)" onclick="exportCSV()">📊 分享/导出 Excel (.csv)</button>
+            <label style="display:block;padding:15px;border-radius:14px;border:2px solid var(--purple);font-size:15px;font-weight:600;color:var(--purple);text-align:center;cursor:pointer;background:var(--pl);touch-action:manipulation">
+              📂 导入备份文件 (.json)
+              <input type="file" accept=".json" style="display:none" onchange="importJSON(this)">
+            </label>
+          </div>
+        </div>
+
+        <!-- ══ PC 端备份 UI ══ -->
+        <div id="backup-desktop">
+          <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:14px">
+            <div style="display:flex;gap:10px;align-items:flex-start">
+              <div style="width:22px;height:22px;border-radius:50%;background:var(--purple);color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">1</div>
+              <div style="font-size:12px;color:var(--ink2);line-height:1.6">点「<b>导出备份</b>」→ 保存 .json 文件，发给自己或存到云盘</div>
+            </div>
+            <div style="display:flex;gap:10px;align-items:flex-start">
+              <div style="width:22px;height:22px;border-radius:50%;background:var(--purple);color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">2</div>
+              <div style="font-size:12px;color:var(--ink2);line-height:1.6">换设备后打开 HTML 文件 → 点「<b>导入备份</b>」→ 数据合并完成</div>
+            </div>
+          </div>
+          <div style="background:#eeeaf8;border-radius:10px;padding:10px 12px;margin-bottom:12px;font-size:12px;color:var(--pd);line-height:1.6">
+            ⚠️ <b>不要清除浏览器数据</b>，建议每周导出备份一次
+          </div>
+          <div class="sync-row">
+            <button class="sync-btn pri" onclick="exportJSON()">📤 导出备份 (.json)</button>
+            <button class="sync-btn pri" onclick="document.getElementById('import-file').click()">📥 导入备份</button>
+            <input type="file" id="import-file" accept=".json" style="display:none" onchange="importJSON(this)">
+          </div>
+          <div class="sync-row" style="margin-top:8px">
+            <button class="sync-btn" style="background:linear-gradient(135deg,#27ae60,#2ecc71);color:#fff;border:none" onclick="exportCSV()">📊 导出 Excel (.csv)</button>
+          </div>
+        </div>
+
+        <div id="backup-status" class="backup-status"></div>
+        <div style="margin-top:10px;display:flex;gap:8px">
+          <button class="wallpaper-entry" onclick="document.getElementById('wallpaper-upload').click()">🖼️ 换壁纸</button>
+          <button class="wallpaper-entry" id="wallpaper-reset-btn" style="display:none" onclick="wallpaperReset()">↩ 还原默认</button>
+        </div>
+        <!-- 阿里云百炼 API 配置 -->
+        <div class="fz-ctrl" style="margin-top:15px;display:flex;flex-direction:column;align-items:stretch;gap:8px;border-top:1px solid #e8e4de;padding-top:12px">
+          <span class="fz-lbl" style="font-weight:700;color:var(--ink2);margin-bottom:2px">🔑 截图识别 API 设置</span>
+          <input class="ti" type="password" id="bailian-api-key" placeholder="输入阿里云百炼 API Key (sk-...)" style="font-size:12px;width:100%;box-sizing:border-box">
+          <div style="display:flex;gap:8px;width:100%">
+            <select id="bailian-model" class="ti" style="flex:1;height:32px;font-size:12px;padding:0 5px;box-sizing:border-box">
+              <option value="qwen-vl-plus">qwen-vl-plus (推荐，速度快)</option>
+              <option value="qwen-vl-max">qwen-vl-max (模型好，精度高)</option>
+            </select>
+            <button class="sync-btn" style="padding:0 12px;margin:0;font-size:12px;height:32px;white-space:nowrap" onclick="saveBailianConfig()">保存</button>
+          </div>
+        </div>
+
+        <!-- 字体大小控制 -->
+        <div class="fz-ctrl">
+          <span class="fz-lbl">🔤 文字大小</span>
+          <button class="fz-btn" id="fz-sm" onclick="setFz('sm')" title="小字">A−</button>
+          <button class="fz-btn" id="fz-md" onclick="setFz('')"  title="标准">A</button>
+          <button class="fz-btn" id="fz-lg" onclick="setFz('lg')" title="大字">A＋</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- 截图识别加载遮罩 -->
+  <div class="aa-sheet-mask" id="ocr-loading-mask" style="display:none;z-index:9999;align-items:center;justify-content:center">
+    <div style="background:#fff;padding:20px 30px;border-radius:16px;text-align:center;box-shadow:0 10px 25px rgba(0,0,0,0.15);max-width:80%">
+      <div class="ocr-spinner" style="width:40px;height:40px;border:4px solid #f3f3f3;border-top:4px solid var(--purple);border-radius:50%;margin:0 auto 12px;animation:ocr-spin 1s linear infinite"></div>
+      <div style="font-size:14px;font-weight:bold;color:var(--ink2);margin-bottom:6px">正在分析截图...</div>
+      <div style="font-size:12px;color:var(--ink3)">通义千问大模型正在提取订单信息</div>
+    </div>
+  </div>
+  <style>
+    @keyframes ocr-spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+  </style>
+
+  <div class="toast" id="toast"></div>

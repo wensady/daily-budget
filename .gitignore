@@ -1,0 +1,40 @@
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor
+.vscode/
+.idea/
+*.swp
+
+# Node
+node_modules/
+*.log
+
+# Build backups
+*.bak.html
+
+# 过滤用户的个人导出备份数据
+*.json
+!src/manifest.json
+
+# 过滤用户测试 OCR 用的个人小票截图
+*.jpg
+*.jpeg
+*.png
+
+# 个人文档，不公开
+手机部署与离线-完全手册.md
+
+# 个人预览页面，不公开
+demo-bill-detail.html
+preview-aa.html
+preview-optimize.html
+
+# 一次性工具，不再需要
+tools/extract.mjs
+apply-changes.mjs
+
+# 构建产物
+dist/
