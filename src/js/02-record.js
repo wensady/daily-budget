@@ -540,7 +540,9 @@
         shopName: ONLINE_KEYS.includes(pk) ? shop : '',
         reasonKey: rc ? rc.dataset.key : '',
         reasonText: reasonText || (rc ? REASON_LBL[rc.dataset.key] : ''),
-        note: ''
+        note: '',
+        // 编辑时保留原 split（AA 分摊信息），避免编辑保存后丢失
+        ...(editingIndex >= 0 && entries[editingIndex].split ? { split: entries[editingIndex].split } : {})
       };
 
       const isUpdate = editingIndex >= 0;
