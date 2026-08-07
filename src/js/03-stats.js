@@ -44,6 +44,7 @@
       const expEnts = ents.filter(e => e.type !== 'income');
       _statExpEnts = expEnts;
       renderOwed();
+      renderIPay();
       const incEnts = ents.filter(e => e.type === 'income');
       const tot    = expEnts.reduce((s, e) => s + e.amount, 0);
       const incTot = incEnts.reduce((s, e) => s + e.amount, 0);
@@ -303,7 +304,8 @@
           const rt = e.reasonText || (e.reasonKey ? REASON_LBL[e.reasonKey] : '');
           const reason = rt ? `<div style="font-size:11px;color:var(--purple);font-style:italic;margin-top:1px">${rt}</div>` : '';
           const cc = CAT_COLORS[e.bigCat] || '#6c5ce7';
-          const aa = (e.split && e.split.owedToMe) ? `<div style="font-size:11px;color:#e8820c;margin-top:2px">🧮 别人欠我¥${e.split.owedToMe.toFixed(2)}${e.split.settled ? '（已收回）' : ''}</div>` : '';
+          const _s = (typeof normSplit === 'function') ? normSplit(e.split) : (e.split || null);
+          const aa = (_s && _s.amount > 0) ? `<div style="font-size:11px;color:#e8820c;margin-top:2px">🧮 ${_s.dir === 'i-owe' ? '我欠别人' : '别人欠我'}¥${_s.amount.toFixed(2)}${_s.settled ? '（已还清）' : ''}</div>` : '';
           return `<div style="display:flex;align-items:flex-start;gap:10px;padding:11px 18px;border-bottom:1px solid #f7f5f2">
             <div style="flex-shrink:0;text-align:right;min-width:40px">
               <div style="font-size:11px;color:var(--ink3);line-height:1.4">${dateStr}</div>

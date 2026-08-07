@@ -68,22 +68,27 @@
     <div class="aa-sheet">
       <div class="aa-sheet-hdr">
         <div>
-          <div class="aa-sheet-title">🧮 这笔有别人欠我的</div>
+          <div class="aa-sheet-title" id="aa-sheet-title">🧮 这笔有别人欠我的</div>
           <div class="aa-sheet-sub" id="aa-sheet-sub">这笔 ¥0</div>
         </div>
         <button class="aa-sheet-x" onclick="closeAaSheet()">×</button>
       </div>
-      <div class="aa-tip">这笔你付了 <b id="aa-total-hint">¥0.00</b>，其中有多少是别人欠你、之后要还的？收回时会自动记成一笔收入。</div>
+      <div class="aa-dir" id="aa-dir">
+        <button class="aa-dir-btn active" data-dir="owe-me" onclick="setAaDir('owe-me')">别人欠我</button>
+        <button class="aa-dir-btn" data-dir="i-owe" onclick="setAaDir('i-owe')">我欠别人</button>
+      </div>
+      <div class="aa-tip" id="aa-tip-owe">这笔你付了 <b id="aa-total-hint">¥0.00</b>，其中有多少是别人欠你、之后要还的？收回时会自动记成一笔收入。</div>
+      <div class="aa-tip" id="aa-tip-ipay" style="display:none">这笔里有多少是我要还别人的？还款时会自动记成一笔支出。</div>
       <div class="aa-field">
-        <label>别人一共欠我</label>
+        <label id="aa-owed-label">别人一共欠我</label>
         <div class="aa-input-row"><span>¥</span><input type="number" inputmode="decimal" id="aa-owed-input" placeholder="0" step="0.01" min="0"></div>
       </div>
       <div class="aa-field">
-        <label>备注（谁欠的，可不填）</label>
+        <label>备注（谁欠的 / 欠谁，可不填）</label>
         <input type="text" id="aa-note" placeholder="例：老王 / 同事聚餐…">
       </div>
       <div class="aa-sheet-btns">
-        <button class="aa-sheet-del" id="aa-sheet-del" onclick="clearAaSplit()" style="display:none">取消代付</button>
+        <button class="aa-sheet-del" id="aa-sheet-del" onclick="clearAaSplit()" style="display:none">取消</button>
         <button class="aa-sheet-save" onclick="saveAaSheet()">保存</button>
       </div>
     </div>
@@ -376,6 +381,12 @@
       <div class="card owed-card" id="owed-card" style="display:none">
         <div class="owed-title">💰 别人欠我 <span id="owed-sum"></span></div>
         <div id="owed-list"></div>
+      </div>
+
+      <!-- 我应付（有我欠别人的平摊才显示）-->
+      <div class="card owed-card ipay-card" id="ipay-card" style="display:none">
+        <div class="owed-title">💸 我应付 <span id="ipay-sum"></span></div>
+        <div id="ipay-list"></div>
       </div>
 
       <!-- 锚点快跳栏 -->

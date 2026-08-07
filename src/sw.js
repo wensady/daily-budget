@@ -1,6 +1,6 @@
 // Service Worker — 记账本离线缓存
 // 每次更新 HTML 时，改一下版本号即可让 SW 自动更新缓存
-const CACHE_NAME = 'budget-app-v1';
+const CACHE_NAME = 'budget-app-v2';
 
 // 需要预缓存的文件（相对于 SW 所在目录）
 const FILES_TO_CACHE = [

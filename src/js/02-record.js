@@ -318,7 +318,8 @@
           const pl = e.place ? (e.place + shop) : '';
           const reasonTxt = e.reasonText || (e.reasonKey ? REASON_LBL[e.reasonKey] : '');
           const isEditing = (i === editingIndex);
-          const aaTag = (e.split && e.split.owedToMe) ? `<div class="eaa">🧮 别人欠我 ¥${e.split.owedToMe.toFixed(2)}${e.split.settled ? '（已收回）' : ''}</div>` : '';
+          const _s = (typeof normSplit === 'function') ? normSplit(e.split) : (e.split || null);
+          const aaTag = (_s && _s.amount > 0) ? `<div class="eaa">${_s.dir === 'i-owe' ? '🧮 我欠别人' : '🧮 别人欠我'} ¥${_s.amount.toFixed(2)}${_s.settled ? '（已还清）' : ''}</div>` : '';
           return `<div class="eitem ${isEditing ? 'unsaved' : 'saved'}" onclick="openEntryMenu(${i})" style="cursor:pointer" title="点击操作">
       <span class="ecat">${e.bigCat || '其他'}</span>
       <div class="emeta">

@@ -1719,6 +1719,15 @@
       margin-left: auto;
     }
 
+    /* AA 方向切换（别人欠我 / 我欠别人）*/
+    .aa-dir { display: flex; gap: 8px; margin-bottom: 12px; }
+    .aa-dir-btn {
+      flex: 1; padding: 9px 0; border: 1px solid var(--pl);
+      background: var(--card); color: var(--ink3);
+      border-radius: 10px; font-size: 13px; font-weight: 600; cursor: pointer;
+    }
+    .aa-dir-btn.active { background: var(--purple); color: #fff; border-color: var(--purple); }
+
     /* 别人欠我 */
     .owed-card { border-left: 3px solid var(--orange); }
     .owed-title {
@@ -1766,6 +1775,10 @@
       font-weight: 600;
       cursor: pointer;
     }
+
+    /* 我应付（i-owe，对称样式，左边框改为蓝）*/
+    .ipay-card { border-left-color: #2f80ed; }
+    .ipay-settle { border-color: var(--orange); color: var(--orange); }
 
     /* 首页“别人欠我”横幅（仅有欠款时显示）*/
     .owe-banner {
