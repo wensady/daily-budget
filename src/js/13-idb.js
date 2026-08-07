@@ -21,6 +21,8 @@
 
     let _idbReady = false;
     let _idbDB = null;
+    let _pendingWrites = []; // IndexedDB 未就绪时暂存写入，就绪后补写
+    let _initDone = false;   // 启动检测是否完成（防止检测期间触发误弹窗）
 
     // ── IndexedDB 打开（带容错）──
     function openIDB() {
@@ -64,18 +66,19 @@
     const _origSetItem = localStorage.setItem.bind(localStorage);
     localStorage.setItem = function(key, value) {
         _origSetItem(key, value);
-        if (key === SK && _idbReady && _idbDB) {
+        if (key === SK) {
             try {
                 const parsed = JSON.parse(value);
-                idbSet(_idbDB, IDB_KEY, parsed).then(() => {
-                    // 双写成功后设置 migrated 标记，避免新用户第一次记账后刷新触发迁移弹窗
-                    // 只有真正的"老用户升级"（localStorage 有数据但从未双写过）才会弹窗
-                    if (!localStorage.getItem(MIGRATED_FLAG)) {
-                        _origSetItem(MIGRATED_FLAG, '1');
-                    }
-                }).catch(err => {
-                    console.warn('[IDB] 双写失败（不影响使用）:', err);
-                });
+                if (_idbReady && _idbDB) {
+                    // IndexedDB 已就绪 → 直接双写
+                    idbSet(_idbDB, IDB_KEY, parsed).catch(err => {
+                        console.warn('[IDB] 双写失败（不影响使用）:', err);
+                    });
+                } else {
+                    // IndexedDB 未就绪 → 暂存，等就绪后补写
+                    _pendingWrites.push(parsed);
+                }
+                // 不在这里设置 migrated 标记——改由启动检测统一管理
             } catch (e) {
                 // value 不是合法 JSON，跳过双写
             }
@@ -89,25 +92,44 @@
             _idbReady = true;
         } catch (err) {
             console.warn('[IDB] 不可用，降级为纯 localStorage:', err);
+            _pendingWrites = []; // 降级模式，丢弃暂存
+            _initDone = true;
             return; // 降级，不影响使用
+        }
+
+        // 补写：IndexedDB 就绪前暂存的写入，现在补进去
+        if (_pendingWrites.length > 0) {
+            const latest = _pendingWrites[_pendingWrites.length - 1]; // 只取最后一次（最新状态）
+            try {
+                await idbSet(_idbDB, IDB_KEY, latest);
+                _origSetItem(MIGRATED_FLAG, '1'); // 补写成功 = 已正常双写过
+            } catch (e) {
+                console.warn('[IDB] 补写失败:', e);
+            }
+            _pendingWrites = [];
         }
 
         const lsRaw = localStorage.getItem(SK);
         const idbData = await idbGet(_idbDB, IDB_KEY).catch(() => null);
         const migrated = localStorage.getItem(MIGRATED_FLAG);
 
+        _initDone = true; // 检测完成，之后 saveRec 双写会直接走 idbSet
+
         if (lsRaw && !idbData && !migrated) {
             // 情况A：localStorage 有，IndexedDB 空，未迁移过 → 弹窗确认迁移
+            // 这是真正的"老用户升级"场景（localStorage 有数据，但从未双写过）
             showMigrateModal(lsRaw);
         } else if (!lsRaw && idbData) {
             // 情况B：localStorage 空（被 iOS 清了），IndexedDB 有 → 静默恢复
             _origSetItem(SK, JSON.stringify(idbData));
             localStorage.setItem(MIGRATED_FLAG, '1');
-            // 触发页面重新加载数据
-            if (typeof loadDateEntries === 'function') loadDateEntries();
-            if (typeof renderStats === 'function' && document.getElementById('page-stats')?.classList.contains('active')) {
-                renderStats();
-            }
+            // 触发页面重新加载数据（用 setTimeout 确保在当前事件循环之后执行）
+            setTimeout(() => {
+                if (typeof loadDateEntries === 'function') loadDateEntries();
+                if (typeof renderStats === 'function' && document.getElementById('page-stats')?.classList.contains('active')) {
+                    renderStats();
+                }
+            }, 0);
             console.log('[IDB] 从 IndexedDB 恢复数据成功');
         } else if (lsRaw && idbData && !migrated) {
             // 情况C：两个都有，但没标记迁移过 → 标记一下，开始正常双写

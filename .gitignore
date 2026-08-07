@@ -38,3 +38,7 @@ apply-changes.mjs
 
 # 构建产物
 dist/
+
+# 测试脚本临时产物
+tools/test-persistence.js
+tools/screenshots/
