@@ -23,7 +23,13 @@
     dp.value = todayKey();
     function setToday() { dp.value = todayKey(); loadDateEntries(); }
     function getDate() { return dp.value || todayKey(); }
-    dp.addEventListener('change', loadDateEntries);
+    // 编辑态下改日期不重载列表：loadDateEntries() 会把 entries 换成新日期的数组，
+    // 而 editingIndex 仍指向旧数组，保存时就会读到 undefined（改动前的崩溃点）。
+    // 跨日期移动交给保存时的 editingDate 分支处理。
+    dp.addEventListener('change', () => {
+      if (editingIndex >= 0) return;
+      loadDateEntries();
+    });
 
     // ══ 折叠 ══
     function toggleMore(btn, id) {

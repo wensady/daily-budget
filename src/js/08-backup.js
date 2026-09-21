@@ -221,4 +221,8 @@
         setTimeout(() => URL.revokeObjectURL(url), 1000);
         showToast('Excel/CSV 已导出');
       }
+
+      // 暴露导出函数，供记账按钮在保存后直接触发备份
+      window.exportJSON = exportJSON;
+      window.exportCSV = exportCSV;
     }

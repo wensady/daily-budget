@@ -280,15 +280,26 @@
 
     // ══ 条目状态 ══
     let entries = [];        // 所有条目
+    let entriesDate = '';    // entries 当前对应的日期（用于判断列表与日期框是否一致）
     let editingIndex = -1;   // -1=新增模式  >=0=编辑第i条
     let editingDate = '';    // 编辑时记录原始日期，支持跨日期移动条目
     let incomeEditIndex = -1;// -1=新增收入  >=0=编辑第i条收入
 
     function loadDateEntries() {
-      const ex = loadRec()[getDate()];
+      entriesDate = getDate();
+      const ex = loadRec()[entriesDate];
       entries = (ex && Array.isArray(ex)) ? [...ex] : [];
       renderList();
       buildFreqPlaces();
+    }
+
+    // 编辑期间用户可能改过日期选择框，但列表数据仍停在 entriesDate 对应的那天。
+    // 把日期框拨回去，避免"列表是今天、日期框却是别天"的错位——
+    // 那种错位会让保存操作把数据写进错误的日期。
+    function syncDatePickerToEntries() {
+      if (!entriesDate) return;
+      const dpEl = document.getElementById('record-date');
+      if (dpEl && dpEl.value !== entriesDate) dpEl.value = entriesDate;
     }
     loadDateEntries();
 
@@ -376,8 +387,10 @@
 
     function editEntry(i) {
       const e = entries[i];
+      if (!e) return;
+      syncDatePickerToEntries();              // 先把日期框拨回列表对应的那天
       editingIndex = i;
-      editingDate = getDate(); // 记录原始日期，编辑时可能改日期选择器
+      editingDate = entriesDate || getDate(); // 记录原始日期，支持跨日期移动条目
 
       // 填回金额
       document.getElementById('amount-input').value = e.amount;
@@ -438,6 +451,7 @@
     function cancelEdit() {
       editingIndex = -1;
       editingDate = '';
+      syncDatePickerToEntries();   // 取消编辑时也把日期框拨回列表对应的那天
       document.getElementById('add-btn').textContent = '＋ 添加这笔';
       document.getElementById('edit-hint-bar').classList.remove('show');
       // 清空表单
@@ -533,8 +547,14 @@
       const pm = document.getElementById('place-input').value.trim();
       const reasonText = document.getElementById('reason-input').value.trim();
 
+      // 编辑态下先确认目标条目真的还在：entries 可能已被重新加载（换日期 / 截图识别回填），
+      // 此时 editingIndex 指向 undefined。失效就退回"新增"，既不崩溃，
+      // 也绝不会把数据静默写到别的记录上。
+      const isUpdate = editingIndex >= 0 && !!entries[editingIndex];
+      const prevEntry = isUpdate ? entries[editingIndex] : null;
+
       const entry = {
-        ts: editingIndex >= 0 ? entries[editingIndex].ts : Date.now(),
+        ts: prevEntry ? prevEntry.ts : Date.now(),
         amount, spendKey: sk, bigCat: CAT_MAP[sk] || '其他',
         desc: document.getElementById('desc-input').value.trim() || SPEND_LBL[sk] || '',
         place: pm || (pk ? PLACE_LBL[pk] : ''),
@@ -543,16 +563,22 @@
         reasonText: reasonText || (rc ? REASON_LBL[rc.dataset.key] : ''),
         note: '',
         // 编辑时保留原 split（AA 分摊信息），避免编辑保存后丢失
-        ...(editingIndex >= 0 && entries[editingIndex].split ? { split: entries[editingIndex].split } : {})
+        ...(prevEntry && prevEntry.split ? { split: prevEntry.split } : {})
       };
 
-      const isUpdate = editingIndex >= 0;
       if (isUpdate) {
         const newDate = getDate();
         const origDate = editingDate || newDate;
         if (origDate && origDate !== newDate) {
           // ── 日期改变：从旧日期删除，往新日期插入 ──
-          const oldEnts = (loadRec()[origDate] || []).filter((_, idx) => idx !== editingIndex);
+          // 用 ts 定位要移除的那条（比用索引稳：索引在列表被重载后可能失真）。
+          // 只移除第一个匹配项，防止 ts 万一重复时误删多条。
+          const oldTs = prevEntry ? prevEntry.ts : null;
+          let removedOne = false;
+          const oldEnts = (loadRec()[origDate] || []).filter(e => {
+            if (!removedOne && e.ts === oldTs) { removedOne = true; return false; }
+            return true;
+          });
           saveRec(origDate, oldEnts);
           const newEnts = loadRec()[newDate] || [];
           newEnts.push(entry);

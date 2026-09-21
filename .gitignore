@@ -32,6 +32,12 @@ demo-bill-detail.html
 preview-aa.html
 preview-optimize.html
 
+# 预览与演示文件夹（本地查看用，不上传）
+预览图/
+
+# 本地工作记忆（含个人记录，绝不上传）
+.workbuddy/
+
 # 一次性工具，不再需要
 tools/extract.mjs
 apply-changes.mjs

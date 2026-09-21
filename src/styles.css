@@ -111,6 +111,8 @@
     }
 
     .dpick {
+      flex: 1;
+      min-width: 0;
       border: none;
       background: transparent;
       font-size: 13px;
@@ -243,6 +245,7 @@
 
     .amt-in {
       flex: 1;
+      min-width: 0;
       border: none;
       border-bottom: 2.5px solid #e8e4de;
       background: transparent;

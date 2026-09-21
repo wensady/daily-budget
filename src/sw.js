@@ -1,29 +1,25 @@
-// Service Worker — 记账本离线缓存
-// 每次更新 HTML 时，改一下版本号即可让 SW 自动更新缓存
-const CACHE_NAME = 'budget-app-v2';
+// Service Worker — 记账本离线缓存（重定向安全版）
+// 修复：原版直接 `return fetch(req)`，当 Cloudflare 返回 3xx 重定向时，
+// SW 把重定向响应透传给导航请求，Chrome 报
+// "response served by service worker has redirected" 并拒绝加载页面。
+// 本版遇到重定向会自己 follow 到最终地址再返回，绝不把 3xx 透传给浏览器。
+const CACHE_NAME = 'budget-app-v3'; // 升版本号，强制浏览器弃用旧 SW
 
-// 需要预缓存的文件（相对于 SW 所在目录）
 const FILES_TO_CACHE = [
   './index.html',
   './manifest.json',
   './icon-192.png'
 ];
 
-// 安装阶段：缓存核心文件
 self.addEventListener('install', event => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then(cache => {
-      // addAll 中任一失败都不影响整体（icon 可能不存在时跳过）
-      return Promise.allSettled(
-        FILES_TO_CACHE.map(url => cache.add(url).catch(() => {}))
-      );
-    })
+    caches.open(CACHE_NAME).then(cache =>
+      Promise.allSettled(FILES_TO_CACHE.map(url => cache.add(url).catch(() => {})))
+    )
   );
-  // 立即激活，不等待旧版本关闭
   self.skipWaiting();
 });
 
-// 激活阶段：清理旧版本缓存
 self.addEventListener('activate', event => {
   event.waitUntil(
     caches.keys().then(keys =>
@@ -33,29 +29,38 @@ self.addEventListener('activate', event => {
   self.clients.claim();
 });
 
-// 拦截请求：缓存优先，失败时回落到缓存（Network First for HTML，Cache First for assets）
+// 只缓存同源的 200 响应，避免缓存跨域/重定向内容
+function cachePut(req, res) {
+  if (!res || res.status !== 200) return;
+  try {
+    if (new URL(req.url).origin !== self.location.origin) return;
+  } catch (e) { return; }
+  caches.open(CACHE_NAME).then(cache => cache.put(req, res).catch(() => {}));
+}
+
 self.addEventListener('fetch', event => {
   const req = event.request;
-  // 只处理 GET 请求
   if (req.method !== 'GET') return;
 
-  event.respondWith(
-    // 先尝试网络（保证拿到最新数据）
-    fetch(req)
-      .then(res => {
-        if (res && res.status === 200) {
-          const resClone = res.clone();
-          caches.open(CACHE_NAME).then(cache => cache.put(req, resClone));
-        }
-        return res;
-      })
-      .catch(() => {
-        // 网络不可用，返回缓存
-        return caches.match(req).then(cached => {
-          if (cached) return cached;
-          // 回落到主页面（离线时所有路径都返回 HTML）
-          return caches.match('./index.html');
-        });
-      })
-  );
+  event.respondWith((async () => {
+    try {
+      let res = await fetch(req);
+      // 关键修复：SW 不能把重定向响应透传给导航请求，否则 Chrome 报错。
+      // 遇到重定向就自己 follow 到最终地址，再返回最终响应。
+      if (res.redirected) {
+        res = await fetch(res.url, { redirect: 'follow' });
+      }
+      cachePut(req, res.clone());
+      return res;
+    } catch (e) {
+      // 离线兜底：先找缓存的资源，导航请求回落到缓存的 index.html
+      const cached = await caches.match(req);
+      if (cached) return cached;
+      if (req.mode === 'navigate') {
+        const shell = await caches.match('./index.html');
+        if (shell) return shell;
+      }
+      return new Response('', { status: 504, statusText: 'offline' });
+    }
+  })());
 });

@@ -85,8 +85,36 @@
         }
     };
 
+    // ── 7 天未打开提醒 ──
+    const LAST_ACTIVE_KEY = 'jizhang_last_active';
+    const LAST_REMIND_KEY = 'jizhang_7d_remind';
+    function checkLongAbsenceReminder() {
+        const pad = (n) => String(n).padStart(2, '0');
+        const ds = (d) => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+        const todayStr = ds(new Date());
+        try {
+            const last = localStorage.getItem(LAST_ACTIVE_KEY);
+            const lastRemind = localStorage.getItem(LAST_REMIND_KEY);
+            if (last && last !== todayStr && lastRemind !== todayStr) {
+                const diff = Math.floor((Date.now() - new Date(last + 'T00:00:00').getTime()) / 86400000);
+                if (diff >= 7) {
+                    // 延迟一点弹出，避免盖住首次渲染；一天最多提醒一次
+                    setTimeout(() => {
+                        if (typeof showToast === 'function') showToast('好久没记账啦，今天有花销要记一笔吗？');
+                    }, 800);
+                    localStorage.setItem(LAST_REMIND_KEY, todayStr);
+                }
+            }
+        } catch (e) { /* localStorage 不可用时不打扰 */ }
+        // 每次打开都更新"最后活跃日"
+        try { localStorage.setItem(LAST_ACTIVE_KEY, todayStr); } catch (e) {}
+    }
+
     // ── 启动时检测四种情况 ──
     window.addEventListener('DOMContentLoaded', async () => {
+        // 7 天未打开提醒（与存储无关，放在最前确保一定执行）
+        checkLongAbsenceReminder();
+
         try {
             _idbDB = await openIDB();
             _idbReady = true;
@@ -134,8 +162,9 @@
         } else if (lsRaw && idbData && !migrated) {
             // 情况C：两个都有，但没标记迁移过 → 标记一下，开始正常双写
             localStorage.setItem(MIGRATED_FLAG, '1');
+        } else {
+            // 情况D：两份都空 → 静默，不再弹红条（全新用户或数据被清都不打扰）
         }
-        // 情况D：两个都空 / 已迁移 → 不处理
     });
 
     // ── 迁移弹窗（动态创建 DOM + 样式，不改 body.html / styles.css）──
@@ -215,4 +244,6 @@
             }
         };
     }
+
+    // 数据疑似被系统清理时不再弹红条（保持界面干净；如需提示改走备份页状态行）
 })();
