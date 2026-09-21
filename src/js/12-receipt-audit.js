@@ -100,7 +100,7 @@ function receiptSectionHTML(e) {
   }
   const id = 'ris_' + Math.random().toString(36).slice(2, 9);
   return '<div class="receipt-section">' +
-           '<button class="receipt-expand-btn" onclick="toggleReceipt(\'' + id + '\', this)">\u25B8 查看明细（' + r.itemCount + ' 项）</button>' +
+           '<button class="receipt-expand-btn" onclick="toggleReceipt(\'' + id + '\', this, event)">\u25B8 查看明细（' + r.itemCount + ' 项）</button>' +
            '<div class="receipt-items-detail" id="' + id + '" style="display:none">' +
              '<div class="ri-table">' +
                '<div class="ri-row ri-hd"><div class="ri-name">品名</div><div class="ri-price">单价</div><div class="ri-qty">数量</div><div class="ri-sub">小计</div></div>' +
@@ -110,7 +110,9 @@ function receiptSectionHTML(e) {
          '</div>';
 }
 
-function toggleReceipt(id, btn) {
+function toggleReceipt(id, btn, ev) {
+  // 明细按钮位于"可点击的条目"内部，不拦住冒泡会顺带弹出「这笔怎么处理」菜单
+  if (ev && ev.stopPropagation) ev.stopPropagation();
   const el = document.getElementById(id);
   if (!el) return;
   const open = el.style.display !== 'none';

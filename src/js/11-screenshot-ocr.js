@@ -105,8 +105,8 @@
             }
         } catch (error) {
             if (loadingMask) loadingMask.style.display = 'none';
-            console.error('OCR Error:', error);
-            showToast('❌ 识别失败: ' + (error.message || '网络或API配置错误'));
+            console.error('OCR Error:', error);   // 原始错误留在控制台，方便排查
+            showToast('❌ 识别失败：' + humanizeApiError(error.message, 0), 5000);
         }
     }
 
@@ -118,6 +118,36 @@
             reader.onload = () => resolve(reader.result);
             reader.onerror = error => reject(error);
         });
+    }
+
+    // 把 API 报错翻译成人话。
+    // 以前是把英文原文直接甩到屏幕上，还容易被长文本裁切，用户看不懂也找不到原因。
+    function humanizeApiError(msg, status) {
+        const raw = String(msg || '');
+        if (/account is in good standing|Arrearage|OUT_OF_SERVICE|billing error/i.test(raw)) {
+            return '百炼账户欠费或余额不足。去阿里云「费用与成本」充值，或改用上面的「AI 识别」（免费）';
+        }
+        if (/InvalidApiKey|invalid api.?key/i.test(raw) || status === 401) {
+            return 'API Key 不对或已失效。请重新填写，或改用上面的「AI 识别」（免费）';
+        }
+        if (/ModelNotOpen|model not found|does not exist|not authorized|permission denied/i.test(raw)) {
+            return '这个模型没开通或没有权限。换个模型试试，或改用「AI 识别」';
+        }
+        if (/Throttling|rate.?limit|too many requests/i.test(raw) || status === 429) {
+            return '调用太频繁了，等一分钟再试';
+        }
+        if (/DataInspection|inappropriate content/i.test(raw)) {
+            return '这张图被内容安全检查拦了。换一张图，或改用「AI 识别」';
+        }
+        if (/InvalidFile|image.*(large|size|format)|exceed/i.test(raw)) {
+            return '图片太大或格式不支持，裁小一点再试';
+        }
+        if (/Failed to fetch|NetworkError|Load failed|Network request failed|timeout|abort/i.test(raw)) {
+            return '网络没连上。检查网络后重试，或改用「AI 识别」';
+        }
+        if (status >= 500) return '阿里云服务暂时故障，稍后再试';
+        const t = raw.length > 60 ? raw.slice(0, 60) + '…' : raw;
+        return t || (status ? '请求失败（HTTP ' + status + '）' : '未知错误');
     }
 
     // 调用阿里云百炼多模态接口
@@ -142,7 +172,9 @@
       // household(日用品), medical(健康/医疗), education(学习/订阅), entertainment(娱乐休闲), beauty(个人护理),
       // gift(礼物/人情), clothes(衣物鞋包), pet(宠物), repair(维修/服务), travel(出行旅游), other(其他)
   "date": "YYYY-MM-DD", // 选填。只要截图上出现日期就填进来，【不要因为“不确定它算不算交易时间”而留空】。可用的日期来源：下单时间、支付时间、发货/物流/签收时间、账单日期、小票日期；订单编号里若含日期（如“260916”表示 2026-09-16）也可据此填入。真的一个日期都没有时才留空 ""
-  "dateType": "下单/支付/物流/账单/小票/其他" // 选填，上面那个日期属于哪一类；判断不出来就留空 ""
+  "dateType": "下单/支付/物流/账单/小票/其他", // 选填，上面那个日期属于哪一类；判断不出来就留空 ""
+  "items": [{"sku":"货号","name":"品名","unitPrice":4.90,"qty":1.00,"unit":"kg","subtotal":4.90}], // 选填。小票/订单上有逐条商品清单时【逐条列出，一项一条】；没有明细（如付款详情页）就填空数组 []
+  "discount": 0.00 // 选填，优惠/抹零金额；没有就填 0
 }
 
 识别与平台判断指南：
@@ -154,6 +186,8 @@
 - 【重要】desc 只能写你真正能判断出的“商品/消费内容”。如果截图里根本没有商品名（例如微信/支付宝的“扫二维码付款”“转账”详情页，只有金额和商户名），desc 就填商户名或直接留空 ""，绝对不要把“交易单号/商户单号/订单号”这类纯数字串填进 desc。
 - 微信/支付宝的“扫二维码付款”“转账”详情页通常是线下消费：place 填商户名（线下实体店），并把商户名同时写进 shopName；date 用页面上的“转账时间/支付时间”折算成 YYYY-MM-DD。
 - 【日期】宁可填错也不要留空：先找“支付时间/付款时间/下单时间”，找不到就用“发货/物流/签收时间”，再找不到就用订单号里的日期。填了之后在 dateType 里注明是哪一类，用户自己会判断要不要改。
+- 【明细】小票/订单上有逐条商品清单时，items 必须【逐条列出，一项一条】。单价、数量、小计【照抄票面数字】，不要自己乘算（subtotal 票面有就直接抄；票面只印了单价、没印小计，才用 unitPrice × qty 补）。称重商品的数量常是小数（如 0.65），照抄不要取整。
+- 【绝对不要编造】如果这张图没有逐条明细（微信/支付宝付款详情页、转账记录、只有一行金额的订单），items 必须留【空数组 []】。不要为了让字段看起来完整而虚构商品名或数字——错的数据比没有数据更糟。
 - 确保输出的 JSON 格式正确，属性名必须使用双引号。`;
 
         const response = await fetch('https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions', {
@@ -186,7 +220,7 @@
 
         if (!response.ok) {
             const errInfo = await response.json().catch(() => ({}));
-            throw new Error(errInfo.error?.message || `HTTP 错误码: ${response.status}`);
+            throw new Error(humanizeApiError(errInfo.error?.message, response.status));
         }
 
         const resData = await response.json();
@@ -317,6 +351,14 @@
             }
         }
 
+        // 7b. 明细：把识别到的逐条商品暂存起来，等用户点保存时写进记录
+        if (Array.isArray(data.items) && data.items.length) {
+            window._ocrItems = data.items;
+            window._ocrDiscount = parseFloat(data.discount) || 0;
+        } else if (typeof clearOcrItems === 'function') {
+            clearOcrItems();   // 这张图没有明细 → 清掉上一条的残留，避免串味
+        }
+
         // 8. 默认展开地点/原因，方便用户审查和补填具体原因
         if (typeof toggleExtra === 'function') {
             toggleExtra(true);
@@ -328,4 +370,7 @@
         // 返回状态：让上层根据"描述有没有识别出来 / 日期是不是今天"给出温和提示
         return { descMissing: !descFilled, dateInfo };
     }
+
+    // 暴露给「粘贴 AI 结果」通道复用，保证两条通道的回填行为完全一致
+    window.__fillOcrForm = fillDataToForm;
 })();

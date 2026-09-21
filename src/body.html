@@ -133,12 +133,30 @@
         <span class="arr">›</span>
       </div>
 
+      <!-- 识别入口：独立区域，放在表单之前。
+           以前它是一个 11px 的小按钮挤在「花了多少」右边——既小得看不见，
+           又像是填金额的附属动作，实际上它是一条独立的记账通道。 -->
+      <div class="ai-entry">
+        <button class="ai-entry-btn pri" onclick="openAiPaste()">
+          <span class="ai-entry-ic">🤖</span>
+          <span class="ai-entry-tx">
+            <span class="ai-entry-t">AI 识别</span>
+            <span class="ai-entry-d">截图发给任意 AI，把结果粘回来</span>
+          </span>
+        </button>
+        <button class="ai-entry-btn sec" onclick="triggerScreenshotUpload(event)">
+          <span class="ai-entry-ic">📷</span>
+          <span class="ai-entry-tx">
+            <span class="ai-entry-t">截图直接识别</span>
+            <span class="ai-entry-d">用内置模型（需百炼 API Key）</span>
+          </span>
+        </button>
+        <div class="ai-entry-hint">或者直接在下面手动填 ↓</div>
+      </div>
+
       <!-- 金额 -->
       <div class="card">
-        <div class="slabel" style="display:flex;justify-content:space-between;align-items:center">
-          <span>花了多少</span>
-          <button class="dtoday" style="font-size:11px;margin:0;padding:4px 8px;background:var(--purple);color:#fff;border:none" onclick="triggerScreenshotUpload(event)">📷 截图识别</button>
-        </div>
+        <div class="slabel">花了多少</div>
         <input type="file" id="screenshot-upload" accept="image/*" style="display:none" onchange="handleScreenshotUpload(this)">
         <div class="amt-row">
           <span class="amt-pre">¥</span>
@@ -582,3 +600,72 @@
   </style>
 
   <div class="toast" id="toast"></div>
+
+  <!-- ══ 提问模板：复制给任意 AI 用 ══
+       放在 text/plain 的 script 里，浏览器不执行、不改写，取 textContent 即可。 -->
+  <script type="text/plain" id="ai-prompt-tpl">请帮我读这张购物截图，把消费信息整理成 JSON 给我。
+只输出下面这个格式的 JSON，不要任何解释文字：
+{
+  "amount": 实付总金额,
+  "desc": "买了什么（保留规格，如 维达纸巾 4斤18卷）",
+  "place": "平台或店名（淘宝/京东/拼多多/美团/饿了么/线下店名）",
+  "shopName": "具体店铺名",
+  "spendKey": "分类键名",
+  "date": "YYYY-MM-DD",
+  "items": [{"name":"品名","unitPrice":单价,"qty":数量,"unit":"单位","subtotal":小计}],
+  "discount": 优惠金额
+}
+分类键名只能从这些里挑一个：
+breakfast早饭, lunch午饭, dinner晚饭, snack零食饮品, grocery买菜, transport交通出行,
+household日用品, medical健康医疗, education学习订阅, entertainment娱乐休闲, beauty个人护理,
+gift礼物人情, clothes衣物鞋包, pet宠物, repair维修服务, travel出行旅游, other其他
+注意：
+1. amount 填实付款/合计，不要填原价
+2. items 是小票上逐条的商品。票上有就逐条照抄（单价、数量、小计都照票面写，不要自己乘算）；
+   票上没有明细就填空数组 []，不要凭猜测编造商品
+3. date 用图上的日期（下单/支付/物流时间都行），一个都找不到才留空</script>
+
+  <!-- ══ AI 识别弹窗（粘贴通道）══ -->
+  <div class="ai-mask" id="ai-mask" onclick="if(event.target===this)closeAiPaste()">
+    <div class="ai-modal">
+      <div class="ai-m-hd">
+        <div>
+          <div class="ai-m-title">🤖 AI 识别</div>
+          <div class="ai-m-sub">不需要 API Key，不花钱</div>
+        </div>
+        <button class="ai-m-x" onclick="closeAiPaste()">×</button>
+      </div>
+
+      <div class="ai-step">
+        <span class="ai-step-no">1</span>
+        <div class="ai-step-bd">
+          <div class="ai-step-t">复制提问模板</div>
+          <div class="ai-step-d">发给 AI 时用，只需复制一次，以后都能用</div>
+          <button class="ai-act copy" id="ai-copy-btn" onclick="copyAiPrompt()">📋 复制提问模板</button>
+        </div>
+      </div>
+
+      <div class="ai-step">
+        <span class="ai-step-no">2</span>
+        <div class="ai-step-bd">
+          <div class="ai-step-t">把截图和模板一起发给任意 AI</div>
+          <div class="ai-step-d">豆包 / 元宝 / Kimi / 通义的免费版都行。等它把 JSON 吐出来，长按复制</div>
+        </div>
+      </div>
+
+      <div class="ai-step">
+        <span class="ai-step-no">3</span>
+        <div class="ai-step-bd">
+          <div class="ai-step-t">把 AI 的回复粘到这里</div>
+          <button class="ai-act paste" id="ai-clip-btn" onclick="readClipboard()">📥 一键读取剪贴板</button>
+          <textarea class="ai-paste-ta" id="ai-paste-ta" placeholder="长按此处粘贴也行…"></textarea>
+          <div class="ai-tip" id="ai-tip"></div>
+        </div>
+      </div>
+
+      <div class="ai-m-ft">
+        <button class="ai-b-cancel" onclick="closeAiPaste()">取消</button>
+        <button class="ai-b-ok" id="ai-ok-btn" onclick="parseAiPaste()">✓ 解析并填入</button>
+      </div>
+    </div>
+  </div>

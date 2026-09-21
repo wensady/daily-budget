@@ -306,6 +306,8 @@
           const cc = CAT_COLORS[e.bigCat] || '#6c5ce7';
           const _s = (typeof normSplit === 'function') ? normSplit(e.split) : (e.split || null);
           const aa = (_s && _s.amount > 0) ? `<div style="font-size:11px;color:#e8820c;margin-top:2px">🧮 ${_s.dir === 'i-owe' ? '我欠别人' : '别人欠我'}¥${_s.amount.toFixed(2)}${_s.settled ? '（已还清）' : ''}</div>` : '';
+          // 有明细的记录，在下面挂一个可展开的明细表；手记的账没有 items，返回空串
+          const receipt = (typeof receiptSectionHTML === 'function') ? receiptSectionHTML(e) : '';
           return `<div style="display:flex;align-items:flex-start;gap:10px;padding:11px 18px;border-bottom:1px solid #f7f5f2">
             <div style="flex-shrink:0;text-align:right;min-width:40px">
               <div style="font-size:11px;color:var(--ink3);line-height:1.4">${dateStr}</div>
@@ -316,7 +318,7 @@
               ${pl}${reason}${aa}
             </div>
             <span style="font-size:14px;font-weight:600;color:var(--warm);flex-shrink:0;margin-top:1px">¥${e.amount.toFixed(2)}</span>
-          </div>`;
+          </div>${receipt}`;
         }).join('');
       }
       document.getElementById('detail-modal').classList.add('open');

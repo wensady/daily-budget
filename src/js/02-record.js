@@ -339,7 +339,11 @@
           const isEditing = (i === editingIndex);
           const _s = (typeof normSplit === 'function') ? normSplit(e.split) : (e.split || null);
           const aaTag = (_s && _s.amount > 0) ? `<div class="eaa">${_s.dir === 'i-owe' ? '🧮 我欠别人' : '🧮 别人欠我'} ¥${_s.amount.toFixed(2)}${_s.settled ? '（已还清）' : ''}</div>` : '';
-          return `<div class="eitem ${isEditing ? 'unsaved' : 'saved'}" onclick="openEntryMenu(${i})" style="cursor:pointer" title="点击操作">
+          // 有明细的记录（截图/AI 识别来的）在条目下方挂一个可展开的明细表；
+          // 手记的账没有 items，receiptSectionHTML 会直接返回空串，什么都不渲染。
+          const receipt = (typeof receiptSectionHTML === 'function') ? receiptSectionHTML(e) : '';
+          return `<div class="entry-block">
+    <div class="eitem ${isEditing ? 'unsaved' : 'saved'}" onclick="openEntryMenu(${i})" style="cursor:pointer" title="点击操作">
       <span class="ecat">${e.bigCat || '其他'}</span>
       <div class="emeta">
         <div class="edesc">${e.desc || SPEND_LBL[e.spendKey] || '消费'}</div>
@@ -349,9 +353,12 @@
       </div>
       <div class="eright">
         <span class="eamt">¥${e.amount.toFixed(2)}</span>
+        ${(typeof receiptBadgeHTML === 'function') ? receiptBadgeHTML(e) : ''}
         <span class="echevron">›</span>
       </div>
-    </div>`;
+    </div>
+    ${receipt}
+  </div>`;
         }).join('');
         const tot = exp.reduce((s, x) => s + x.e.amount, 0);
         totEl.innerHTML = `合计：<strong>¥${tot.toFixed(2)}</strong>`;
@@ -571,7 +578,14 @@
         reasonText: reasonText || (rc ? REASON_LBL[rc.dataset.key] : ''),
         note: '',
         // 编辑时保留原 split（AA 分摊信息），避免编辑保存后丢失
-        ...(prevEntry && prevEntry.split ? { split: prevEntry.split } : {})
+        ...(prevEntry && prevEntry.split ? { split: prevEntry.split } : {}),
+        // 小票明细（逐条商品的品名/单价/数量/小计）。三条来源，优先级从高到低：
+        //   ① 这次识别出来的  ② 编辑时保留原有的  ③ 手记的账本来就没有
+        ...(window._ocrItems && window._ocrItems.length
+              ? { items: window._ocrItems, discount: window._ocrDiscount || 0 }
+              : (prevEntry && prevEntry.items
+                  ? { items: prevEntry.items, discount: prevEntry.discount || 0 }
+                  : {}))
       };
 
       if (isUpdate) {
@@ -610,6 +624,10 @@
       editingDate = '';
       document.getElementById('add-btn').textContent = '＋ 添加这笔';
       document.getElementById('edit-hint-bar').classList.remove('show');
+
+      // 明细已经写进这条记录了，清掉暂存，
+      // 否则下一条手记的账会误带上这次识别出来的明细
+      if (typeof clearOcrItems === 'function') clearOcrItems();
 
       buildFreqPlaces();
 
