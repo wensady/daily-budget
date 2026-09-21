@@ -68,6 +68,12 @@
         if (loadingMask) loadingMask.style.display = 'flex';
 
         try {
+            // 截图识别属于"新记一笔"：先退出编辑态，
+            // 否则识别结果会被当成"编辑内容"写进正在编辑的那条记录里。
+            if (typeof editingIndex !== 'undefined' && editingIndex >= 0 && typeof cancelEdit === 'function') {
+                cancelEdit();
+            }
+
             const base64 = await fileToBase64(file);
             const data = await callBailianVisionAPI(base64);
             
@@ -75,8 +81,22 @@
             
             if (data) {
                 const status = fillDataToForm(data);
+                const parts = [];
+
+                // 日期被改成别的天时，必须明确告诉用户——否则他会以为记的就是今天
+                if (status && status.dateInfo && status.dateInfo.isToday === false) {
+                    const label = (typeof fmtDay === 'function')
+                        ? fmtDay(status.dateInfo.date)
+                        : status.dateInfo.date;
+                    const src = status.dateInfo.type ? '（' + status.dateInfo.type + '）' : '';
+                    parts.push('日期用了截图里的 ' + label + src + '，不是今天，点「回今天」可改');
+                }
                 if (status && status.descMissing) {
-                    showToast('💡 金额和店家已回填～ 但这张截图只有付款信息，没有“买了什么”，AI 认不出来，请在「花了什么」里补一句再保存', 5000);
+                    parts.push('但这张图只有付款信息、认不出"买了什么"，请在「花了什么」补一句再保存');
+                }
+
+                if (parts.length) {
+                    showToast('✓ 已回填 —— ' + parts.join('；'), 6000);
                 } else {
                     showToast('✓ 截图解析成功，数据已自动回填');
                 }
@@ -121,7 +141,8 @@
       // breakfast(早饭), lunch(午饭), dinner(晚饭), snack(零食/饮品), grocery(买菜), transport(交通出行),
       // household(日用品), medical(健康/医疗), education(学习/订阅), entertainment(娱乐休闲), beauty(个人护理),
       // gift(礼物/人情), clothes(衣物鞋包), pet(宠物), repair(维修/服务), travel(出行旅游), other(其他)
-  "date": "YYYY-MM-DD" // 选填，账单对应的实际交易日期。如果截图上能清晰看到日期（如“2026-07-03”或“今天”等折算后的日期）则填入，如果无法确定则留空 ""
+  "date": "YYYY-MM-DD", // 选填。只要截图上出现日期就填进来，【不要因为“不确定它算不算交易时间”而留空】。可用的日期来源：下单时间、支付时间、发货/物流/签收时间、账单日期、小票日期；订单编号里若含日期（如“260916”表示 2026-09-16）也可据此填入。真的一个日期都没有时才留空 ""
+  "dateType": "下单/支付/物流/账单/小票/其他" // 选填，上面那个日期属于哪一类；判断不出来就留空 ""
 }
 
 识别与平台判断指南：
@@ -132,6 +153,7 @@
 - 实付款判定：必须优先寻找“实付款”、“合计”、“支付金额”、“实付”右侧的数字，避开原价、省下、优惠等干扰数字。若金额前带负号（如“-7.00”），取其绝对值。
 - 【重要】desc 只能写你真正能判断出的“商品/消费内容”。如果截图里根本没有商品名（例如微信/支付宝的“扫二维码付款”“转账”详情页，只有金额和商户名），desc 就填商户名或直接留空 ""，绝对不要把“交易单号/商户单号/订单号”这类纯数字串填进 desc。
 - 微信/支付宝的“扫二维码付款”“转账”详情页通常是线下消费：place 填商户名（线下实体店），并把商户名同时写进 shopName；date 用页面上的“转账时间/支付时间”折算成 YYYY-MM-DD。
+- 【日期】宁可填错也不要留空：先找“支付时间/付款时间/下单时间”，找不到就用“发货/物流/签收时间”，再找不到就用订单号里的日期。填了之后在 dateType 里注明是哪一类，用户自己会判断要不要改。
 - 确保输出的 JSON 格式正确，属性名必须使用双引号。`;
 
         const response = await fetch('https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions', {
@@ -280,12 +302,18 @@
             if (shopBox) shopBox.classList.remove('show');
         }
 
-        // 7. 处理日期（如有明晰日期，且格式符合）
+        // 7. 处理日期：截图上有日期就采用，并把"改成了哪天"交给上层提示用户
+        let dateInfo = null;
         if (data.date && /^\d{4}-\d{2}-\d{2}$/.test(data.date)) {
             const dateInput = document.getElementById('record-date');
             if (dateInput) {
                 dateInput.value = data.date;
                 if (typeof loadDateEntries === 'function') loadDateEntries();
+                dateInfo = {
+                    date: data.date,
+                    type: data.dateType || '',
+                    isToday: (typeof todayKey === 'function') && data.date === todayKey()
+                };
             }
         }
 
@@ -297,7 +325,7 @@
         // 滚动到最顶部（让用户能够清楚检查回填的金额和描述）
         document.getElementById('amount-input').scrollIntoView({ behavior: 'smooth', block: 'center' });
 
-        // 返回状态：让上层根据“描述有没有识别出来”给出温和提示
-        return { descMissing: !descFilled };
+        // 返回状态：让上层根据"描述有没有识别出来 / 日期是不是今天"给出温和提示
+        return { descMissing: !descFilled, dateInfo };
     }
 })();

@@ -289,8 +289,16 @@
       entriesDate = getDate();
       const ex = loadRec()[entriesDate];
       entries = (ex && Array.isArray(ex)) ? [...ex] : [];
+      markNonToday();
       renderList();
       buildFreqPlaces();
+    }
+
+    // 当前日期不是今天时，把「回今天」按钮点亮。
+    // 主要为截图回填服务：日期被识别成别的天后，用户要能一眼看出来，而不是事后才发现记错了。
+    function markNonToday() {
+      const btn = document.querySelector('.date-row .dtoday');
+      if (btn) btn.classList.toggle('not-today', getDate() !== todayKey());
     }
 
     // 编辑期间用户可能改过日期选择框，但列表数据仍停在 entriesDate 对应的那天。

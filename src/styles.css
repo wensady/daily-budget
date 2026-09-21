@@ -134,6 +134,14 @@
       font-family: inherit
     }
 
+    /* 当前不是今天时点亮「回今天」（配套截图回填日期，避免用户以为记的是今天） */
+    .dtoday.not-today {
+      color: #fff;
+      background: var(--purple);
+      border-color: var(--purple);
+      font-weight: 500
+    }
+
     /* CARD */
     .card {
       background: rgba(255,255,255,0.88);
