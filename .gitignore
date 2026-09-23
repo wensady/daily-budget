@@ -45,6 +45,8 @@ apply-changes.mjs
 # 构建产物
 dist/
 
-# 测试脚本临时产物
+# 测试脚本临时产物（AI 本地验证用，不入库）
 tools/test-persistence.js
+tools/test-*
+tools/verify-*
 tools/screenshots/

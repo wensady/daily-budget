@@ -134,21 +134,22 @@
             return;
         }
 
-        // 截图识别属于「新记一笔」：先退出编辑态，
-        // 免得回填被当成"编辑内容"写进正在编辑的那条记录里。
-        if (typeof editingIndex !== 'undefined' && editingIndex >= 0 && typeof cancelEdit === 'function') {
-            cancelEdit();
-        }
-
+        // 共用回填函数在校验通过后退出编辑态，失败时保留原表单。
         if (typeof window.__fillOcrForm !== 'function') {
             aiTip('bad', '回填模块没就绪，刷新页面再试一次');
             return;
         }
 
-        const st = window.__fillOcrForm(data);
+        let st;
+        try {
+            st = window.__fillOcrForm(data);
+        } catch (e) {
+            aiTip('bad', e.message || '明细格式无法读取，请用最新模板重新整理');
+            return;
+        }
 
         const parts = ['金额 ¥' + data.amount];
-        const n = (Array.isArray(data.items) && data.items.length) ? data.items.length : 0;
+        const n = st ? st.itemCount : 0;
         if (n) parts.push(n + ' 条明细');
         if (st && st.dateInfo && st.dateInfo.isToday === false) {
             const d = st.dateInfo.date;

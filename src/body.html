@@ -205,6 +205,9 @@
         </div>
       </div>
 
+      <!-- 识别后先核对商品，再保存；手动记账时不占空间 -->
+      <section class="card receipt-draft" id="receipt-draft" style="display:none" aria-label="小票明细预览"></section>
+
       <!-- 地点 / 原因：默认折叠，点开才出现（选填，加快日常快记）-->
       <button class="extra-toggle" id="extra-toggle" onclick="toggleExtra()">＋ 地点 · 原因（选填）</button>
       <div id="extra-fields" style="display:none">
@@ -621,8 +624,11 @@ household日用品, medical健康医疗, education学习订阅, entertainment娱
 gift礼物人情, clothes衣物鞋包, pet宠物, repair维修服务, travel出行旅游, other其他
 注意：
 1. amount 填实付款/合计，不要填原价
-2. items 是小票上逐条的商品。票上有就逐条照抄（单价、数量、小计都照票面写，不要自己乘算）；
-   票上没有明细就填空数组 []，不要凭猜测编造商品
+2. items 必须是数组，一种商品一条，保留全部商品名和规格，不要只把清单塞进 desc。
+   有品名就列入 items，即使没有价格也要保留；单价、数量、小计照票面写，没印或看不清的字段填 null，不要填 0 或猜测数字。
+   称重数量保留小数，单位单独放 unit；subtotal 是该商品整行金额，amount 是整张小票实付。
+   只有付款总额、完全没有商品名称时才填空数组 []，不要凭猜测编造商品。
+   输出前核对商品条数，不能省略后面的商品；示例：{"name":"药品名称","unitPrice":null,"qty":null,"unit":"","subtotal":null}。
 3. date 用图上的日期（下单/支付/物流时间都行），一个都找不到才留空</script>
 
   <!-- ══ AI 识别弹窗（粘贴通道）══ -->
@@ -640,7 +646,7 @@ gift礼物人情, clothes衣物鞋包, pet宠物, repair维修服务, travel出�
         <span class="ai-step-no">1</span>
         <div class="ai-step-bd">
           <div class="ai-step-t">复制提问模板</div>
-          <div class="ai-step-d">发给 AI 时用，只需复制一次，以后都能用</div>
+          <div class="ai-step-d">模板已补充逐项明细要求。请重新复制，和小票一起发给 AI</div>
           <button class="ai-act copy" id="ai-copy-btn" onclick="copyAiPrompt()">📋 复制提问模板</button>
         </div>
       </div>

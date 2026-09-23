@@ -68,12 +68,7 @@
         if (loadingMask) loadingMask.style.display = 'flex';
 
         try {
-            // 截图识别属于"新记一笔"：先退出编辑态，
-            // 否则识别结果会被当成"编辑内容"写进正在编辑的那条记录里。
-            if (typeof editingIndex !== 'undefined' && editingIndex >= 0 && typeof cancelEdit === 'function') {
-                cancelEdit();
-            }
-
+            // 收到且校验通过后再退出编辑态，失败时保留当前表单。
             const base64 = await fileToBase64(file);
             const data = await callBailianVisionAPI(base64);
             
@@ -186,8 +181,8 @@
 - 【重要】desc 只能写你真正能判断出的“商品/消费内容”。如果截图里根本没有商品名（例如微信/支付宝的“扫二维码付款”“转账”详情页，只有金额和商户名），desc 就填商户名或直接留空 ""，绝对不要把“交易单号/商户单号/订单号”这类纯数字串填进 desc。
 - 微信/支付宝的“扫二维码付款”“转账”详情页通常是线下消费：place 填商户名（线下实体店），并把商户名同时写进 shopName；date 用页面上的“转账时间/支付时间”折算成 YYYY-MM-DD。
 - 【日期】宁可填错也不要留空：先找“支付时间/付款时间/下单时间”，找不到就用“发货/物流/签收时间”，再找不到就用订单号里的日期。填了之后在 dateType 里注明是哪一类，用户自己会判断要不要改。
-- 【明细】小票/订单上有逐条商品清单时，items 必须【逐条列出，一项一条】。单价、数量、小计【照抄票面数字】，不要自己乘算（subtotal 票面有就直接抄；票面只印了单价、没印小计，才用 unitPrice × qty 补）。称重商品的数量常是小数（如 0.65），照抄不要取整。
-- 【绝对不要编造】如果这张图没有逐条明细（微信/支付宝付款详情页、转账记录、只有一行金额的订单），items 必须留【空数组 []】。不要为了让字段看起来完整而虚构商品名或数字——错的数据比没有数据更糟。
+- 【明细】items 必须是数组，小票上有品名就逐条列入并保留规格，即使没有逐项金额也要列出。不要只把商品清单塞进 desc。单价、数量、小计照抄票面数字；没印或看不清的字段填 null，不要填 0，也不要自己乘算或猜测。称重数量保留小数（如 0.65），单位单独放 unit。输出前核对条数，不能省略后面的商品。
+- 【绝对不要编造】只有图片完全没有商品或收费项目名称、仅有付款总额时，items 才填空数组 []。有名称但缺金额的项目也要列出，缺失数字填 null；不要虚构商品名或数字。
 - 确保输出的 JSON 格式正确，属性名必须使用双引号。`;
 
         const response = await fetch('https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions', {
@@ -242,6 +237,9 @@
 
     // 将解析出的数据回填至前端表单
     function fillDataToForm(data) {
+        // 两条识别通道共用同一套校验，先校验再改表单，避免半成功。
+        data = prepareReceiptData(data);
+        if (typeof editingIndex !== 'undefined' && editingIndex >= 0 && typeof cancelEdit === 'function') cancelEdit();
         // 1. 切换回记账页（防止在统计页操作时视图未刷新）
         switchPage('record');
 
@@ -249,6 +247,12 @@
         if (data.amount && parseFloat(data.amount) > 0) {
             document.getElementById('amount-input').value = parseFloat(data.amount);
         }
+
+        // 新小票的缺失信息不能沿用上一笔。
+        ['desc-input', 'place-input', 'shop-input', 'reason-input'].forEach(id => {
+            document.getElementById(id).value = '';
+        });
+        document.querySelectorAll('.chip[data-group="spend"],.chip[data-group="place"],.chip[data-group="reason"]').forEach(chip => chip.classList.remove('sel'));
 
         // 3. 填写描述（包含完整的规格）
         //    兜底：模型有时会把“交易单号/商户单号”这类纯数字串误当成商品名，这里挡掉
@@ -335,6 +339,7 @@
         } else {
             if (shopBox) shopBox.classList.remove('show');
         }
+        markReceiptDraftFields();
 
         // 7. 处理日期：截图上有日期就采用，并把"改成了哪天"交给上层提示用户
         let dateInfo = null;
@@ -358,17 +363,20 @@
         } else if (typeof clearOcrItems === 'function') {
             clearOcrItems();   // 这张图没有明细 → 清掉上一条的残留，避免串味
         }
+        window._ocrReceiptNote = data.receiptNote || '';
+        window._ocrReceiptActive = true;
+        renderReceiptDraft();
 
         // 8. 默认展开地点/原因，方便用户审查和补填具体原因
         if (typeof toggleExtra === 'function') {
             toggleExtra(true);
         }
 
-        // 滚动到最顶部（让用户能够清楚检查回填的金额和描述）
-        document.getElementById('amount-input').scrollIntoView({ behavior: 'smooth', block: 'center' });
+        // 滚动到小票预览，先让用户看到识别出的商品和金额。
+        document.getElementById('receipt-draft').scrollIntoView({ behavior: 'smooth', block: 'start' });
 
         // 返回状态：让上层根据"描述有没有识别出来 / 日期是不是今天"给出温和提示
-        return { descMissing: !descFilled, dateInfo };
+        return { descMissing: !descFilled, dateInfo, itemCount: data.items.length };
     }
 
     // 暴露给「粘贴 AI 结果」通道复用，保证两条通道的回填行为完全一致

@@ -403,6 +403,7 @@
     function editEntry(i) {
       const e = entries[i];
       if (!e) return;
+      if (typeof clearOcrItems === 'function') clearOcrItems();
       syncDatePickerToEntries();              // 先把日期框拨回列表对应的那天
       editingIndex = i;
       editingDate = entriesDate || getDate(); // 记录原始日期，支持跨日期移动条目
@@ -443,6 +444,7 @@
       // 切换按钮文字 & 提示条
       document.getElementById('add-btn').textContent = '✓ 更新这笔';
       document.getElementById('edit-hint-bar').classList.add('show');
+      if (typeof renderReceiptDraft === 'function') renderReceiptDraft();
 
       // 若这笔填过地点/原因，自动展开折叠区，方便看到并修改
       if (e.place || e.reasonKey || e.reasonText) toggleExtra(true);
@@ -465,6 +467,7 @@
 
     function cancelEdit() {
       editingIndex = -1;
+      if (typeof clearOcrItems === 'function') clearOcrItems();
       editingDate = '';
       syncDatePickerToEntries();   // 取消编辑时也把日期框拨回列表对应的那天
       document.getElementById('add-btn').textContent = '＋ 添加这笔';
@@ -582,9 +585,9 @@
         // 小票明细（逐条商品的品名/单价/数量/小计）。三条来源，优先级从高到低：
         //   ① 这次识别出来的  ② 编辑时保留原有的  ③ 手记的账本来就没有
         ...(window._ocrItems && window._ocrItems.length
-              ? { items: window._ocrItems, discount: window._ocrDiscount || 0 }
+              ? { items: window._ocrItems, discount: window._ocrDiscount || 0, receiptNote: window._ocrReceiptNote || '' }
               : (prevEntry && prevEntry.items
-                  ? { items: prevEntry.items, discount: prevEntry.discount || 0 }
+                  ? { items: prevEntry.items, discount: prevEntry.discount || 0, receiptNote: prevEntry.receiptNote || '' }
                   : {}))
       };
 
